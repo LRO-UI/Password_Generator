@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Password generator</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='7' y='7' width='18' height='18' transform='rotate(45 16 16)' fill='%233f6fa8' stroke='%23e7eaf0' stroke-width='1.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300..700&family=IBM+Plex+Mono:wght@400;500&family=Playfair+Display:wght@400..900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+    color-scheme:dark;
+    --bg:#0d0f14; --panel:#14171f; --panel-edge:#232732;
+    --blue:#3f6fa8; --blue2:#5c7f9e; --steel:#7c8698;
+    --ink:#e7eaf0; --ink-soft:#727c8c; --line:#252a35;
+    --danger:#c77a7a; --ok:#7fa88a; --warn:#c9a86a;
+    --font-ui:'Space Grotesk', system-ui, sans-serif;
+    --font-mono:'IBM Plex Mono', ui-monospace, Menlo, monospace;
+  }
+  html{scroll-padding-top:env(safe-area-inset-top,0px); height:100%;}
+  *{box-sizing:border-box;}
+  body{
+    margin:0; min-height:100%; background:var(--bg); color:var(--ink);
+    font-family:var(--font-ui); display:flex; flex-direction:column;
+  }
+  header{
+    padding:22px 30px; border-bottom:4px double var(--blue2);
+    display:flex; align-items:baseline; gap:16px; flex-wrap:wrap;
+  }
+  header h1{
+    margin:0; font-family:'Playfair Display', Georgia, serif; font-weight:800;
+    font-size:1.5rem; letter-spacing:.02em; color:var(--ink);
+  }
+  .app{display:flex; flex:1; flex-wrap:wrap;}
+
+  /* Stage */
+  .stage{
+    flex:3 1 480px; min-width:0; position:relative;
+    padding:40px; display:flex; align-items:stretch;
+    border-right:1px solid var(--line);
+  }
+  .rail-frame{ position:relative; flex:1; display:flex; min-height:420px; min-width:0; }
+  .rail-frame::before, .rail-frame::after{
+    content:''; position:absolute; pointer-events:none; z-index:2;
+  }
+  .rail-frame::before{ inset:8px; border:1px solid rgba(231,234,240,.6); }
+  .rail-frame::after{ inset:13px; border:1px solid rgba(92,127,158,.35); }
+  .rail-d{
+    position:absolute; width:10px; height:10px; z-index:3;
+    background:var(--blue); border:2px solid var(--bg);
+    transform:translate(-50%,-50%) rotate(45deg);
+    box-shadow:0 0 0 1px rgba(231,234,240,.5);
+  }
+  .rail-d.tl{top:8px; left:8px;} .rail-d.tr{top:8px; left:calc(100% - 8px);}
+  .rail-d.bl{top:calc(100% - 8px); left:8px;} .rail-d.br{top:calc(100% - 8px); left:calc(100% - 8px);}
+
+  .preview{
+    flex:1; margin:34px; display:flex; flex-direction:column;
+    justify-content:center; gap:18px; min-width:0; position:relative; z-index:4;
+  }
+  .meta{ display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .meta .dims{ font-size:.72rem; color:var(--blue2); font-variant-numeric:tabular-nums; letter-spacing:.06em; }
+  .strength{ font-size:.72rem; letter-spacing:.06em; display:flex; align-items:center; gap:8px; }
+  .meter{ display:flex; gap:3px; }
+  .meter i{ width:14px; height:4px; background:var(--line); display:block; }
+  .strength[data-level="1"] .meter i:nth-child(-n+1){ background:var(--danger); }
+  .strength[data-level="2"] .meter i:nth-child(-n+2){ background:var(--warn); }
+  .strength[data-level="3"] .meter i:nth-child(-n+3){ background:var(--blue2); }
+  .strength[data-level="4"] .meter i:nth-child(-n+4){ background:var(--ok); }
+
+  ol.list{ list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; }
+  .pw{
+    display:grid; grid-template-columns:1fr auto; align-items:center; gap:10px;
+    background:var(--panel); border:1px solid var(--line); padding:10px 10px 10px 14px;
+    min-width:0;
+  }
+  .pw code{
+    font-family:var(--font-mono); font-size:.92rem; color:var(--ink);
+    overflow-wrap:anywhere; line-height:1.45; user-select:all;
+  }
+  .pw code .d{ color:#8fb0d6; }
+  .pw code .s{ color:#c9a86a; }
+  .pw.fresh{ animation:flash .5s ease-out; }
+  @keyframes flash{ from{ border-color:var(--blue2); background:rgba(63,111,168,.18);} to{} }
+  @media (prefers-reduced-motion:reduce){ .pw.fresh{ animation:none; } }
+
+  button.copy{
+    background:transparent; border:1px solid var(--line); color:var(--ink-soft);
+    font-family:var(--font-ui); font-size:.68rem; letter-spacing:.08em;
+    padding:7px 10px; cursor:pointer; min-width:64px;
+  }
+  button.copy:hover{ color:var(--ink); border-color:var(--blue2); }
+  button.copy:focus-visible{ outline:1px solid #fff; outline-offset:2px; }
+  button.copy.done{ color:var(--ok); border-color:var(--ok); }
+
+  .empty{
+    display:flex; align-items:center; justify-content:center; text-align:center; padding:30px;
+    min-height:200px; border:1px dashed rgba(199,122,122,.4); color:var(--danger);
+    font-size:.9rem; line-height:1.5;
+  }
+
+  /* Side panel */
+  .side{
+    flex:1 1 320px; min-width:0; padding:30px 28px;
+    display:flex; flex-direction:column; gap:26px; overflow:auto;
+  }
+  .group-title{
+    display:flex; align-items:center; gap:10px;
+    text-transform:uppercase; letter-spacing:.26em; font-size:.66rem;
+    color:var(--ink-soft); margin-bottom:12px;
+  }
+  .group-title::before{ content:''; width:6px; height:6px; background:var(--blue); transform:rotate(45deg); flex:none; }
+  .group-title::after{ content:''; flex:1; height:3px; border-top:1px solid var(--blue); border-bottom:1px solid var(--blue2); }
+
+  .checks{ display:flex; flex-direction:column; gap:11px; }
+  .check{ display:flex; align-items:center; gap:9px; font-size:.8rem; color:var(--ink-soft); cursor:pointer; }
+  .check input{ accent-color:var(--blue); width:14px; height:14px; margin:0; }
+  .check .sample{ margin-left:auto; font-family:var(--font-mono); font-size:.72rem; color:#4d5563; }
+  .check:has(input:checked){ color:var(--ink); }
+  .hint{ font-size:.7rem; color:var(--ink-soft); line-height:1.45; margin-top:10px; }
+
+  .row{ display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:.8rem; }
+  .row .val{ color:var(--blue2); font-size:.72rem; font-variant-numeric:tabular-nums; }
+  input[type=range]{
+    width:100%; -webkit-appearance:none; appearance:none; height:2px; background:var(--line); outline:none; margin:10px 0;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; background:var(--blue);
+    border:2px solid var(--bg); box-shadow:0 0 0 1px var(--blue2); transform:rotate(45deg); cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:11px; height:11px; background:var(--blue); border:2px solid var(--bg);
+    box-shadow:0 0 0 1px var(--blue2); transform:rotate(45deg); cursor:pointer; border-radius:0;
+  }
+  input[type=range]:focus-visible::-webkit-slider-thumb{ box-shadow:0 0 0 2px #fff; }
+  .scale{ display:flex; justify-content:space-between; font-size:.66rem; color:#4d5563; font-variant-numeric:tabular-nums; }
+
+  .btn-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  button.tool{
+    --c:var(--blue2);
+    border:1px solid var(--line); background:
+      linear-gradient(var(--c),var(--c)) top left/8px 1px no-repeat,
+      linear-gradient(var(--c),var(--c)) top left/1px 8px no-repeat,
+      linear-gradient(var(--c),var(--c)) top right/8px 1px no-repeat,
+      linear-gradient(var(--c),var(--c)) top right/1px 8px no-repeat,
+      linear-gradient(var(--c),var(--c)) bottom left/8px 1px no-repeat,
+      linear-gradient(var(--c),var(--c)) bottom left/1px 8px no-repeat,
+      linear-gradient(var(--c),var(--c)) bottom right/8px 1px no-repeat,
+      linear-gradient(var(--c),var(--c)) bottom right/1px 8px no-repeat,
+      var(--panel);
+    box-shadow:inset 0 0 0 3px var(--panel), inset 0 0 0 4px var(--panel-edge);
+    color:var(--ink); font-family:var(--font-ui); font-size:.85rem; font-variant-numeric:tabular-nums;
+    letter-spacing:.06em; padding:12px 8px; cursor:pointer;
+  }
+  button.tool:hover{ --c:#fff; }
+  button.tool:focus-visible{ outline:1px solid #fff; outline-offset:2px; }
+  button.tool.active{ --c:var(--blue); background-color:rgba(63,111,168,.18); color:#fff; }
+
+  button.generate{
+    width:100%; background:var(--blue); border:1px solid var(--blue2); color:#fff;
+    font-family:var(--font-ui); font-size:.72rem; text-transform:uppercase; letter-spacing:.22em;
+    padding:14px 10px; cursor:pointer;
+    box-shadow:inset 0 0 0 3px var(--blue), inset 0 0 0 4px rgba(231,234,240,.35);
+  }
+  button.generate:hover{ background:#4a7cb8; }
+  button.generate:focus-visible{ outline:1px solid #fff; outline-offset:2px; }
+  button.generate:disabled{ opacity:.4; cursor:not-allowed; }
+  button.reset{
+    width:100%; margin-top:8px; background:transparent; border:1px solid var(--line);
+    color:var(--ink-soft); font-family:var(--font-ui); font-size:.68rem; text-transform:uppercase;
+    letter-spacing:.2em; padding:11px 10px; cursor:pointer;
+  }
+  button.reset:hover{ color:var(--ink); border-color:var(--blue2); }
+  button.reset:focus-visible{ outline:1px solid #fff; outline-offset:2px; }
+  button.reset:disabled{ opacity:.4; cursor:not-allowed; }
+  .status{ font-size:.7rem; color:var(--ink-soft); margin-top:8px; min-height:1em; }
+
+  @media (max-width:760px){
+    .stage{ border-right:none; border-bottom:1px solid var(--line); padding:18px; flex-basis:100%; }
+    .rail-frame{ min-height:0; }
+    .preview{ margin:30px 24px; }
+    header{ padding:18px 20px; }
+    .side{ padding:24px 20px; flex-basis:100%; }
+    .pw code{ font-size:.82rem; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Password generator</h1>
+</header>
+
+<div class="app">
+  <div class="stage">
+    <div class="rail-frame">
+      <div class="rail-d tl"></div><div class="rail-d tr"></div>
+      <div class="rail-d bl"></div><div class="rail-d br"></div>
+      <div class="preview">
+        <div class="meta">
+          <div class="dims" id="dims"></div>
+          <div class="strength" id="strength" data-level="0" aria-live="polite">
+            <span class="meter" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+            <span id="strengthLabel"></span>
+          </div>
+        </div>
+        <ol class="list" id="list" aria-label="Generated passwords"></ol>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <div>
+      <div class="group-title">Length</div>
+      <div class="row"><label for="lenRange">Characters</label><span class="val" id="lenVal">16</span></div>
+      <input type="range" id="lenRange" min="8" max="64" step="1" value="16">
+      <div class="scale"><span>8</span><span>64</span></div>
+    </div>
+
+    <div>
+      <div class="group-title">Characters</div>
+      <div class="checks">
+        <label class="check"><input type="checkbox" id="optLower" checked> Lowercase <span class="sample">a–z</span></label>
+        <label class="check"><input type="checkbox" id="optUpper" checked> Uppercase <span class="sample">A–Z</span></label>
+        <label class="check"><input type="checkbox" id="optDigits" checked> Digits <span class="sample">0–9</span></label>
+        <label class="check"><input type="checkbox" id="optSymbols" checked> Symbols <span class="sample">!@#$%</span></label>
+        <label class="check"><input type="checkbox" id="optNoLook"> No look-alikes <span class="sample">0 O l 1 I |</span></label>
+      </div>
+      <div class="hint">Every password includes at least one character from each type you select.</div>
+    </div>
+
+    <div>
+      <div class="group-title">Quantity</div>
+      <div class="btn-grid" id="countGrid">
+        <button class="tool" data-val="3">3</button>
+        <button class="tool active" data-val="5">5</button>
+        <button class="tool" data-val="10">10</button>
+        <button class="tool" data-val="15">15</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="group-title">Generate</div>
+      <button class="generate" id="btnGen">Generate again</button>
+      <button class="reset" id="btnCopyAll">Copy all</button>
+      <div class="status" id="status" aria-live="polite"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const SETS = {
+    lower:'abcdefghijklmnopqrstuvwxyz',
+    upper:'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+    digits:'0123456789',
+    symbols:'!@#$%^&*()-_=+[]{};:,.<>?/~|'
+  };
+  const LOOKALIKES = new Set('0Oo1lI|;:,.'.split(''));
+  const state = { length:16, count:5, current:[] };
+
+  /* Unbiased random integer in [0, max) using crypto */
+  function randInt(max){
+    const limit = Math.floor(0x100000000 / max) * max;
+    const buf = new Uint32Array(1);
+    let x;
+    do { crypto.getRandomValues(buf); x = buf[0]; } while (x >= limit);
+    return x % max;
+  }
+
+  function activeSets(){
+    const noLook = $('optNoLook').checked;
+    const pick = [];
+    if($('optLower').checked) pick.push(SETS.lower);
+    if($('optUpper').checked) pick.push(SETS.upper);
+    if($('optDigits').checked) pick.push(SETS.digits);
+    if($('optSymbols').checked) pick.push(SETS.symbols);
+    return pick.map(s => noLook ? [...s].filter(ch => !LOOKALIKES.has(ch)).join('') : s);
+  }
+
+  function makePassword(sets, len){
+    const all = sets.join('');
+    const chars = sets.map(s => s[randInt(s.length)]);
+    while(chars.length < len) chars.push(all[randInt(all.length)]);
+    for(let i = chars.length - 1; i > 0; i--){
+      const j = randInt(i + 1);
+      [chars[i], chars[j]] = [chars[j], chars[i]];
+    }
+    return chars.join('');
+  }
+
+  function escapeHtml(ch){
+    return ch.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function colorize(pw){
+    return [...pw].map(ch => {
+      const e = escapeHtml(ch);
+      if(/[0-9]/.test(ch)) return '<span class="d">' + e + '</span>';
+      if(!/[a-zA-Z]/.test(ch)) return '<span class="s">' + e + '</span>';
+      return e;
+    }).join('');
+  }
+
+  function setStrength(bits){
+    const el = $('strength');
+    let level = 0, label = '';
+    if(bits > 0){
+      if(bits < 50){ level = 1; label = 'Weak'; }
+      else if(bits < 80){ level = 2; label = 'Fair'; }
+      else if(bits < 110){ level = 3; label = 'Strong'; }
+      else { level = 4; label = 'Very strong'; }
+      label += ', ~' + Math.round(bits) + ' bits';
+    }
+    el.dataset.level = level;
+    $('strengthLabel').textContent = label;
+  }
+
+  async function copyText(text){
+    try { await navigator.clipboard.writeText(text); return true; }
+    catch(e){
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.setAttribute('readonly',''); ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      let ok = false; try { ok = document.execCommand('copy'); } catch(_){}
+      ta.remove(); return ok;
+    }
+  }
+
+  function render(){
+    const list = $('list');
+    const sets = activeSets();
+    list.innerHTML = '';
+    $('status').textContent = '';
+
+    if(!sets.length){
+      state.current = [];
+      list.innerHTML = '<li class="empty">Select at least one character type to generate passwords.</li>';
+      $('dims').textContent = '';
+      setStrength(0);
+      $('btnGen').disabled = true; $('btnCopyAll').disabled = true;
+      return;
+    }
+    $('btnGen').disabled = false; $('btnCopyAll').disabled = false;
+
+    const pool = sets.join('').length;
+    state.current = Array.from({length:state.count}, () => makePassword(sets, state.length));
+    $('dims').textContent = state.count + ' passwords, ' + state.length + ' characters, pool of ' + pool;
+    setStrength(state.length * Math.log2(pool));
+
+    state.current.forEach((pw, i) => {
+      const li = document.createElement('li');
+      li.className = 'pw fresh';
+      li.innerHTML = '<code>' + colorize(pw) + '</code>';
+      const btn = document.createElement('button');
+      btn.className = 'copy'; btn.textContent = 'Copy';
+      btn.setAttribute('aria-label', 'Copy password ' + (i + 1));
+      btn.addEventListener('click', async () => {
+        const ok = await copyText(pw);
+        btn.textContent = ok ? 'Copied' : 'Failed';
+        btn.classList.toggle('done', ok);
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 1400);
+      });
+      li.appendChild(btn);
+      list.appendChild(li);
+    });
+  }
+
+  $('lenRange').addEventListener('input', e => {
+    state.length = +e.target.value;
+    $('lenVal').textContent = state.length;
+    render();
+  });
+  ['optLower','optUpper','optDigits','optSymbols','optNoLook'].forEach(id =>
+    $(id).addEventListener('change', render));
+
+  $('countGrid').addEventListener('click', e => {
+    const b = e.target.closest('button.tool'); if(!b) return;
+    $('countGrid').querySelectorAll('.tool').forEach(x => x.classList.toggle('active', x === b));
+    state.count = +b.dataset.val;
+    render();
+  });
+
+  $('btnGen').addEventListener('click', render);
+  $('btnCopyAll').addEventListener('click', async () => {
+    if(!state.current.length) return;
+    const ok = await copyText(state.current.join('\n'));
+    $('status').textContent = ok ? 'Copied ' + state.current.length + ' passwords, one per line.' : 'Copy failed. Select the text and copy it manually.';
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
