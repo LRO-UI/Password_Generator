@@ -1,4 +1,4 @@
-# Project Name
+# Password Generator
 
 A simple password generator. With options for from how many are generated, how many characters, to adding/removing lowercase, uppercase, digits, symbols and no-look-alikes.
 
